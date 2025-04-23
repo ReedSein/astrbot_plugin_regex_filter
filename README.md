@@ -78,18 +78,6 @@ RegexFilter插件能够拦截并处理大语言模型(LLM)的响应消息，通�
 3. 删除所有"问题"字样
 4. 在消息末尾添加"(已通过正则处理)"标记
 
-## 配置文件说明
-
-插件使用`_conf_schema.json`文件定义配置结构，主要配置项包括：
-
-- `enabled`: 是否启用插件
-- `replace_rules`: 替换规则列表
-- `delete_rules`: 删除规则列表
-- `append_rules`: 后添加规则列表
-- `prepend_rules`: 前添加规则列表
-- `add_end_mark`: 是否在消息末尾添加标记
-- `end_mark`: 末尾标记的文本内容
-- `debug_mode`: 是否启用调试模式
 
 ## 使用场景
 
