@@ -46,7 +46,8 @@ RegexFilter插件能够拦截并处理大语言模型(LLM)的响应消息，通�
   例如：
   ```
   /regex_add 不可以 可以 replace
-  /regex_add $  (已处理) append
+  /regex_add $ (已处理) append
+  /regex_add ^ (已添加） prepend
   ```
 
 - `/regex_remove [index]` - 删除指定索引的规则
