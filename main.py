@@ -5,7 +5,7 @@ from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import LLMResponse
 import astrbot.api.message_components as Comp
 
-@register("regex_filter", "GitHub Copilot", "一个使用正则表达式处理LLM消息的插件", "1.0.0", "https://github.com/yourusername/astrbot_plugin_regex_filter")
+@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.0.0", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
 class RegexFilterPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
