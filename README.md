@@ -1,0 +1,2 @@
+# astrbot_plugin_regex_filter
+一个使用正则表达式处理LLM消息的插件
