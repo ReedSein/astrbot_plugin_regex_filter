@@ -1,5 +1,5 @@
 name: regex_filter
-version: '1.0.0'
+version: '1.0.1'
 author: LKarxa
 description: 一个使用正则表达式处理LLM消息的插件
 repository: https://github.com/LKarxa/astrbot_plugin_regex_filter

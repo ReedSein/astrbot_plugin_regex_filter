@@ -5,6 +5,12 @@
     "hint": "设置为true启用插件，false禁用插件",
     "default": true
   },
+  "listen_all_responses": {
+    "description": "是否监听所有机器人回复",
+    "type": "bool",
+    "hint": "设置为true将监听所有机器人回复内容，false只监听LLM回复内容",
+    "default": false
+  },
   "replace_rules": {
     "description": "替换规则列表",
     "type": "list",
@@ -48,64 +54,5 @@
         "pattern": "问题"
       }
     ]
-  },
-  "append_rules": {
-    "description": "在匹配处后面添加内容的规则列表",
-    "type": "list",
-    "hint": "在匹配到的文本后添加指定内容",
-    "items": {
-      "pattern": {
-        "description": "正则表达式模式",
-        "type": "string",
-        "hint": "符合Python re模块的正则表达式，在匹配内容后添加文本"
-      },
-      "replacement": {
-        "description": "要添加的内容",
-        "type": "string",
-        "hint": "要在匹配内容后添加的文本"
-      }
-    },
-    "default": [
-      {
-        "pattern": "$",
-        "replacement": " (已通过正则处理)"
-      }
-    ]
-  },
-  "prepend_rules": {
-    "description": "在匹配处前面添加内容的规则列表",
-    "type": "list",
-    "hint": "在匹配到的文本前添加指定内容",
-    "items": {
-      "pattern": {
-        "description": "正则表达式模式",
-        "type": "string",
-        "hint": "符合Python re模块的正则表达式，在匹配内容前添加文本"
-      },
-      "replacement": {
-        "description": "要添加的内容",
-        "type": "string",
-        "hint": "要在匹配内容前添加的文本"
-      }
-    },
-    "default": []
-  },
-  "add_end_mark": {
-    "description": "是否在处理后的消息末尾添加标记",
-    "type": "bool",
-    "hint": "如果设置为true，则在所有消息处理后添加标记",
-    "default": true
-  },
-  "end_mark": {
-    "description": "消息末尾标记",
-    "type": "string",
-    "hint": "当add_end_mark为true时，添加在消息末尾的标记文本",
-    "default": " (已通过正则处理)"
-  },
-  "debug_mode": {
-    "description": "调试模式",
-    "type": "bool",
-    "hint": "启用调试模式会在日志中输出更详细的信息",
-    "default": false
   }
 }
