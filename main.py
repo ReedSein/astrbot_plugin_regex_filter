@@ -4,7 +4,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import LLMResponse
 
-@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.0.1", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
+@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.1.0", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
 class RegexFilterPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
