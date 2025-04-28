@@ -10,6 +10,17 @@
     "type": "bool",
     "hint": "设置为true将监听所有机器人回复内容，false只监听LLM回复内容",
     "default": false
+  },
+  "replace_rules": {
+    "description": "替换规则列表",
+    "type": "list",
+    "invisible": true,
+    "default": []
+  },
+  "delete_rules": {
+    "description": "删除规则列表",
+    "type": "list",
+    "invisible": true,
+    "default": []
   }
-
 }

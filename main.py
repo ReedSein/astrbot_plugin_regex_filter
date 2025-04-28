@@ -4,7 +4,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import LLMResponse
 
-@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.2.0", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
+@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.3.0", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
 class RegexFilterPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
@@ -64,56 +64,97 @@ class RegexFilterPlugin(Star):
     # 添加规则到配置文件
     def _add_rule_to_config(self, pattern: str, replacement: str, action: str, description: str):
         if not self.config:
+            logger.error("配置对象为空，无法保存规则")
             return
             
-        # 创建新的规则项
-        rule_item = {"pattern": pattern}
-        if action != "delete":
-            rule_item["replacement"] = replacement
+        try:
+            # 创建新的规则项
+            rule_item = {"pattern": pattern}
+            if action != "delete":
+                rule_item["replacement"] = replacement
+                
+            # 根据不同的action添加到不同的规则列表
+            if action == "replace":
+                rules_key = "replace_rules"
+            elif action == "delete":
+                rules_key = "delete_rules"
+            else:
+                logger.warning(f"不支持的规则类型: {action}")
+                return
+                
+            # 确保配置中有对应的规则列表
+            rules = self.config.get(rules_key, [])
+            if not isinstance(rules, list):
+                logger.warning(f"{rules_key}不是列表类型，重置为空列表")
+                rules = []
+                
+            rules.append(rule_item)
+            self.config[rules_key] = rules
             
-        # 根据不同的action添加到不同的规则列表
-        if action == "replace":
-            rules_key = "replace_rules"
-        elif action == "delete":
-            rules_key = "delete_rules"
-        else:
-            logger.warning(f"不支持的规则类型: {action}")
-            return
-            
-        rules = self.config.get(rules_key, [])
-        rules.append(rule_item)
-        self.config[rules_key] = rules
-        self.config.save_config()
+            # 保存配置文件
+            logger.debug(f"正在保存配置文件，规则数量: {len(rules)}")
+            try:
+                self.config.save_config()
+                logger.info(f"规则已保存到配置文件，{action}规则: {pattern}")
+            except Exception as e:
+                logger.error(f"保存配置文件失败: {str(e)}")
+        except Exception as e:
+            logger.error(f"添加规则到配置文件时发生错误: {str(e)}")
 
     # 从配置文件中删除规则
     def _remove_rule_from_config(self, index: int):
         if not self.config:
+            logger.error("配置对象为空，无法删除规则")
             return False
             
-        if index < 0 or index >= len(self.rules):
-            return False
-            
-        rule = self.rules[index]
-        pattern, _, action, _ = rule
-        
-        # 根据action确定从哪个列表中删除
-        if action == "replace":
-            rules_key = "replace_rules"
-        elif action == "delete":
-            rules_key = "delete_rules"
-        else:
-            return False
-            
-        # 查找并删除匹配的规则
-        rules = self.config.get(rules_key, [])
-        for i, r in enumerate(rules):
-            if r.get("pattern") == pattern:
-                rules.pop(i)
-                self.config[rules_key] = rules
-                self.config.save_config()
-                return True
+        try:
+            if index < 0 or index >= len(self.rules):
+                logger.error(f"规则索引越界: {index}，规则数量: {len(self.rules)}")
+                return False
                 
-        return False
+            rule = self.rules[index]
+            pattern, _, action, _ = rule
+            
+            # 根据action确定从哪个列表中删除
+            if action == "replace":
+                rules_key = "replace_rules"
+            elif action == "delete":
+                rules_key = "delete_rules"
+            else:
+                logger.error(f"不支持的规则类型: {action}")
+                return False
+                
+            # 查找并删除匹配的规则
+            rules = self.config.get(rules_key, [])
+            if not isinstance(rules, list):
+                logger.warning(f"{rules_key}不是列表类型，无法删除规则")
+                return False
+                
+            found = False
+            for i, r in enumerate(rules):
+                if isinstance(r, dict) and r.get("pattern") == pattern:
+                    rules.pop(i)
+                    found = True
+                    logger.debug(f"从{rules_key}中删除规则: {pattern}")
+                    break
+                    
+            if not found:
+                logger.warning(f"在配置文件中未找到规则: {pattern}")
+                return False
+                
+            # 更新配置并保存
+            self.config[rules_key] = rules
+            
+            try:
+                self.config.save_config()
+                logger.info(f"规则已从配置文件中删除: {pattern}")
+                return True
+            except Exception as e:
+                logger.error(f"保存配置文件失败: {str(e)}")
+                return False
+        except Exception as e:
+            logger.error(f"从配置文件中删除规则时发生错误: {str(e)}")
+            return False
         
     # 应用正则规则到文本
     def _apply_rules_to_text(self, text):
@@ -238,9 +279,9 @@ class RegexFilterPlugin(Star):
         action_desc = '替换' if action == 'replace' else '删除'
         
         if action == 'delete':
-            description = f"动态添加的{action_desc}规则: {pattern}"
+            description = f"{action_desc}规则: {pattern}"
         else:
-            description = f"动态添加的{action_desc}规则: {pattern} -> {replacement}"
+            description = f"{action_desc}规则: {pattern} -> {replacement}"
         
         # 添加到内存中的规则列表
         self.rules.append([pattern, replacement, action, description])
