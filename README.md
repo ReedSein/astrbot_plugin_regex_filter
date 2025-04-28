@@ -2,7 +2,7 @@
 
 一个使用正则表达式处理LLM消息的AstrBot插件，可以对LLM回复进行替换、删除、增添等操作。
 
-下载过旧版本插件的，需要去`data/config/astrbot_plugin_regex_filter_config.json`删除，webui上的配置才能正常显示。
+下载过旧版本插件的，需要把`data/config/astrbot_plugin_regex_filter_config.json`删除，webui上的配置才能正常显示。
 
 ## 功能介绍
 
