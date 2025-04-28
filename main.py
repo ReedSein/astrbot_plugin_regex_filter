@@ -4,7 +4,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import LLMResponse
 
-@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.1.0", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
+@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.2.0", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
 class RegexFilterPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
@@ -157,25 +157,56 @@ class RegexFilterPlugin(Star):
                 resp.completion_text = modified_text
                 logger.info(f"正则处理：文本已修改，应用了 {len(applied_rules)} 条规则")
 
-    @filter.after_message_sent()
-    async def on_all_response(self, event: AstrMessageEvent):
+    @filter.on_decorating_result()
+    async def on_decorating_result(self, event: AstrMessageEvent):
         """监听所有回复消息，使用正则表达式进行处理"""
-        # 如果未启用监听所有回复，则退出
+        logger.debug("on_decorating_result被调用，开始处理消息")
+        
+        # 如果未启用插件或监听所有回复，则退出
         if not self.enabled or not self.listen_all_responses:
+            logger.debug(f"on_decorating_result提前退出：enabled={self.enabled}, listen_all_responses={self.listen_all_responses}")
             return
         
-        # 获取回复内容
-        text = event.get_text() if hasattr(event, "get_text") else None
-        if not text:
+        # 获取回复结果
+        result = event.get_result()
+        if not result:
+            logger.debug("on_decorating_result: 无法获取事件结果，退出处理")
             return
             
-        original_text = text
-        modified_text, applied_rules = self._apply_rules_to_text(original_text)
+        chain = result.chain
+        logger.debug(f"on_decorating_result: 获取到消息链类型: {type(chain)}")
         
-        # 如果文本已被修改，则更新响应
-        if modified_text != original_text and hasattr(event, "set_text"):
-            event.set_text(modified_text)
-            logger.info(f"[所有回复] 正则处理：文本已修改，应用了 {len(applied_rules)} 条规则")
+        # 检查chain是否为list类型
+        if not isinstance(chain, list):
+            logger.debug(f"on_decorating_result: 消息链不是list类型: {type(chain)}")
+            return
+        
+        # 导入Plain组件类，用于识别纯文本消息
+        from astrbot.api.message_components import Plain
+        
+        # 处理消息链中的Plain文本组件
+        modified = False
+        for i, component in enumerate(chain):
+            # 检查组件是否是Plain类型
+            if isinstance(component, Plain):
+                original_text = component.text
+                logger.debug(f"on_decorating_result: 找到Plain组件，文本: {original_text[:50]}...")
+                
+                # 应用规则处理文本
+                modified_text, applied_rules = self._apply_rules_to_text(original_text)
+                
+                # 如果文本已被修改，直接更新Plain组件的text属性
+                if modified_text != original_text:
+                    logger.debug(f"on_decorating_result: 文本已被修改，更新Plain组件")
+                    component.text = modified_text
+                    modified = True
+                    logger.debug(f"on_decorating_result: 应用了{len(applied_rules)}条规则")
+        
+        # 如果有任何修改，记录日志
+        if modified:
+            logger.info(f"[所有回复] 正则处理：文本已修改，应用了规则")
+        else:
+            logger.debug("on_decorating_result: 未修改任何Plain组件")
 
     @filter.command("regex_add")
     async def add_regex_rule(self, event: AstrMessageEvent, pattern: str, replacement: str = ""):

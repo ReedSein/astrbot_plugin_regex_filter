@@ -10,49 +10,6 @@
     "type": "bool",
     "hint": "设置为true将监听所有机器人回复内容，false只监听LLM回复内容",
     "default": false
-  },
-  "replace_rules": {
-    "description": "替换规则列表",
-    "type": "list",
-    "hint": "将匹配到的文本替换为指定内容",
-    "items": {
-      "pattern": {
-        "description": "正则表达式模式",
-        "type": "string",
-        "hint": "符合Python re模块的正则表达式"
-      },
-      "replacement": {
-        "description": "替换内容",
-        "type": "string",
-        "hint": "要替换为的文本"
-      }
-    },
-    "default": [
-      {
-        "pattern": "不可以",
-        "replacement": "可以"
-      },
-      {
-        "pattern": "(糟糕|坏|不好)",
-        "replacement": "好"
-      }
-    ]
-  },
-  "delete_rules": {
-    "description": "删除规则列表",
-    "type": "list",
-    "hint": "删除匹配到的文本",
-    "items": {
-      "pattern": {
-        "description": "正则表达式模式",
-        "type": "string",
-        "hint": "符合Python re模块的正则表达式，匹配的内容将被删除"
-      }
-    },
-    "default": [
-      {
-        "pattern": "问题"
-      }
-    ]
   }
+
 }
