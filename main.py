@@ -19,7 +19,7 @@ class RegexRule:
     action: str                   # 动作类型: 'replace' 或 'delete'
     description: str              # 规则描述
 
-@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.4.0", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
+@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.4.1", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
 class RegexFilterPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         """
@@ -39,42 +39,38 @@ class RegexFilterPlugin(Star):
     def _load_rules_from_config(self):
         """
         从配置中加载并编译规则
-        (已重构：适配 Dict[str, str] 和 List[str] 格式)
+        (已重构：适配 List[str] 格式，解析 'A -> B' 字符串)
         """
         self.rules.clear()
         
-        # 1. 加载替换规则 (现在的格式是 Dict[str, str])
-        replace_map = self.config.get("replace_rules", {})
-        if isinstance(replace_map, dict):
-            for pattern, replacement in replace_map.items():
-                self._compile_and_add_memory(
-                    pattern=pattern,
-                    replacement=replacement,
-                    action="replace"
-                )
+        # 1. 加载替换规则 (List[str])
+        replace_list = self.config.get("replace_rules", [])
+        if isinstance(replace_list, list):
+            for item in replace_list:
+                # 处理字符串格式: "Pattern -> Replacement"
+                if isinstance(item, str) and "->" in item:
+                    # 使用 split 仅分割第一个 '->'，防止替换文本中也有 '->'
+                    parts = item.split("->", 1)
+                    if len(parts) == 2:
+                        pattern = parts[0].strip()
+                        replacement = parts[1].strip()
+                        self._compile_and_add_memory(pattern, replacement, "replace")
+                # 兼容旧版 Dict 格式
+                elif isinstance(item, dict):
+                    self._compile_and_add_memory(item.get("pattern", ""), item.get("replacement", ""), "replace")
         else:
-            # 兼容旧配置或错误类型的回退处理
-            logger.warning("配置警告: replace_rules 应为字典(对象)格式，尝试作为列表加载以兼容旧版...")
-            if isinstance(replace_map, list):
-                for item in replace_map:
-                    if isinstance(item, dict):
-                        self._compile_and_add_memory(item.get("pattern", ""), item.get("replacement", ""), "replace")
+            logger.error("配置格式错误: replace_rules 应为列表格式")
 
-        # 2. 加载删除规则 (现在的格式是 List[str])
+        # 2. 加载删除规则 (List[str])
         delete_list = self.config.get("delete_rules", [])
         if isinstance(delete_list, list):
-            for pattern in delete_list:
-                # 兼容性处理：如果用户还是用的旧格式 [{'pattern': 'xxx'}]
-                real_pattern = pattern
-                if isinstance(pattern, dict): 
-                    real_pattern = pattern.get("pattern", "")
-                
-                if isinstance(real_pattern, str):
-                    self._compile_and_add_memory(
-                        pattern=real_pattern,
-                        replacement="",
-                        action="delete"
-                    )
+            for item in delete_list:
+                # 处理字符串格式
+                if isinstance(item, str):
+                    self._compile_and_add_memory(item, "", "delete")
+                # 兼容旧版 Dict 格式
+                elif isinstance(item, dict):
+                    self._compile_and_add_memory(item.get("pattern", ""), "", "delete")
         else:
             logger.error("配置格式错误: delete_rules 应为列表格式")
             
@@ -83,7 +79,6 @@ class RegexFilterPlugin(Star):
     def _compile_and_add_memory(self, pattern: str, replacement: str, action: str) -> bool:
         """
         编译正则并添加到内存列表中 (不涉及文件保存)
-        返回: 是否成功添加
         """
         if not pattern:
             return False
@@ -110,22 +105,22 @@ class RegexFilterPlugin(Star):
     def _sync_rules_to_config(self):
         """
         将内存中的规则全量同步保存到配置文件。
-        (已重构：保存为扁平化的 Dict 和 List 结构)
+        (已重构：保存为 List[str] 格式)
         """
-        replace_map = {}
+        replace_list = []
         delete_list = []
         
         for rule in self.rules:
             if rule.action == "replace":
-                # 构建字典: { "pattern": "replacement" }
-                # 注意：如果存在重复的 pattern，后定义的会覆盖先定义的
-                replace_map[rule.raw_pattern] = rule.replacement
+                # 序列化为 "Pattern -> Replacement"
+                rule_str = f"{rule.raw_pattern} -> {rule.replacement}"
+                replace_list.append(rule_str)
             else:
-                # 构建列表: [ "pattern1", "pattern2" ]
+                # 序列化为 "Pattern"
                 delete_list.append(rule.raw_pattern)
                 
         # 更新 config 对象
-        self.config["replace_rules"] = replace_map
+        self.config["replace_rules"] = replace_list
         self.config["delete_rules"] = delete_list
         
         # 持久化保存
@@ -135,7 +130,6 @@ class RegexFilterPlugin(Star):
     def _apply_rules_to_text(self, text: str) -> Tuple[str, List[int]]:
         """
         应用所有内存中的规则到指定文本
-        返回: (修改后的文本, 应用的规则索引列表)
         """
         if not text:
             return text, []
@@ -145,9 +139,7 @@ class RegexFilterPlugin(Star):
         
         for i, rule in enumerate(self.rules):
             old_text = modified_text
-            
             try:
-                # 核心优化：直接使用预编译对象的 sub 方法
                 if rule.action == 'replace':
                     modified_text = rule.compiled_pattern.sub(rule.replacement, modified_text)
                 elif rule.action == 'delete':
@@ -164,13 +156,10 @@ class RegexFilterPlugin(Star):
     @filter.on_llm_response()
     async def on_llm_response(self, event: AstrMessageEvent, resp: LLMResponse):
         """监听LLM响应"""
-        if not self.enabled:
-            return
-            
+        if not self.enabled: return
         if resp.completion_text:
             original_text = resp.completion_text
             modified_text, applied_rules = self._apply_rules_to_text(original_text)
-            
             if modified_text != original_text:
                 resp.completion_text = modified_text
                 logger.info(f"正则处理LLM响应：应用了 {len(applied_rules)} 条规则")
@@ -178,27 +167,20 @@ class RegexFilterPlugin(Star):
     @filter.on_decorating_result()
     async def on_decorating_result(self, event: AstrMessageEvent):
         """监听所有机器人回复消息"""
-        if not self.enabled or not self.listen_all_responses:
-            return
-        
+        if not self.enabled or not self.listen_all_responses: return
         result = event.get_result()
-        if not result or not result.chain:
-            return
-            
+        if not result or not result.chain: return
         chain = result.chain
-        if not isinstance(chain, list):
-            return
+        if not isinstance(chain, list): return
         
         modified = False
         for component in chain:
             if isinstance(component, Plain):
                 original_text = component.text
                 modified_text, _ = self._apply_rules_to_text(original_text)
-                
                 if modified_text != original_text:
                     component.text = modified_text
                     modified = True
-        
         if modified:
             logger.info(f"[所有回复] 正则处理：消息链中的文本已修改")
 
@@ -216,18 +198,13 @@ class RegexFilterPlugin(Star):
             return
         
         action = "replace" if replacement else "delete"
-        
-        # 1. 添加到内存
         success = self._compile_and_add_memory(pattern, replacement, action)
         
         if success:
-            # 2. 同步到配置 (此处会自动以新格式保存)
             self._sync_rules_to_config()
-            
             action_desc = '替换' if action == 'replace' else '删除'
-            # 获取刚刚添加的规则描述
             new_rule = self.rules[-1]
-            yield event.plain_result(f"✅ {action_desc}规则已添加！\n{new_rule.description}\n当前规则总数：{len(self.rules)}")
+            yield event.plain_result(f"✅ {action_desc}规则已添加！\n{new_rule.description}")
         else:
             yield event.plain_result("❌ 规则添加失败，请查看后台日志。")
     
@@ -242,9 +219,7 @@ class RegexFilterPlugin(Star):
         delete_rules_text = []
         
         for i, rule in enumerate(self.rules):
-            # 使用 dataclass 属性访问，更清晰
             rule_info = f"{i+1}. `{rule.raw_pattern}`"
-            
             if rule.action == "replace":
                 rule_info += f" -> `{rule.replacement}`"
                 replace_rules_text.append(rule_info)
@@ -266,12 +241,8 @@ class RegexFilterPlugin(Star):
             yield event.plain_result(f"无效的索引：{index}。有效范围是 1 到 {len(self.rules)}。")
             return
         
-        # 1. 从内存移除
         removed_rule = self.rules.pop(index - 1)
-        
-        # 2. 同步到配置
         self._sync_rules_to_config()
-        
         yield event.plain_result(f"🗑️ 规则 {index} 已删除。\n详情: {removed_rule.description}")
     
     @filter.command("regex_test")
@@ -281,29 +252,22 @@ class RegexFilterPlugin(Star):
             yield event.plain_result("⚠️ 插件当前已禁用，测试结果可能不反映实际运行状态。")
 
         modified_text, applied_rules_indices = self._apply_rules_to_text(text)
-        
-        result = f"🧪 **测试结果**\n"
-        result += f"**原文本**: {text}\n"
-        result += f"**处理后**: {modified_text}\n"
+        result = f"🧪 **测试结果**\n**原文本**: {text}\n**处理后**: {modified_text}\n"
         
         if applied_rules_indices:
-            # 更加清晰的规则引用
             applied_rules_desc = [f"规则 {i}: {self.rules[i-1].description}" for i in applied_rules_indices]
             result += "\n**✅ 应用的规则**:\n- " + "\n- ".join(applied_rules_desc)
         else:
             result += "\n无规则被应用。"
-            
         yield event.plain_result(result)
     
     @filter.command("regex_listen_all")
     async def toggle_listen_all(self, event: AstrMessageEvent):
         """切换是否监听所有机器人回复"""
         self.listen_all_responses = not self.listen_all_responses
-        
         if self.config:
             self.config["listen_all_responses"] = self.listen_all_responses
             self.config.save_config()
-            
         status = "开启" if self.listen_all_responses else "关闭"
         yield event.plain_result(f"监听所有回复功能已{status}。")
     
@@ -311,11 +275,9 @@ class RegexFilterPlugin(Star):
     async def toggle_plugin(self, event: AstrMessageEvent):
         """切换插件启用/禁用状态"""
         self.enabled = not self.enabled
-        
         if self.config:
             self.config["enabled"] = self.enabled
             self.config.save_config()
-            
         status = "启用" if self.enabled else "禁用"
         yield event.plain_result(f"RegexFilter插件已{status}。")
     
