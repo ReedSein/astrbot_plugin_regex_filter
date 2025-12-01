@@ -8,56 +8,36 @@
   "listen_all_responses": {
     "description": "是否监听所有机器人回复",
     "type": "bool",
-    "hint": "设置为true将监听所有机器人回复内容，false只监听LLM回复内容",
+    "hint": "true=监听所有回复(含插件)，false=只监听LLM回复",
     "default": false
   },
   "replace_rules": {
-    "description": "替换规则列表",
-    "type": "list",
-    "item": {
-      "type": "dict",
-      "properties": {
-        "pattern": {
-          "type": "string",
-          "description": "要匹配的正则表达式"
-        },
-        "replacement": {
-          "type": "string",
-          "description": "用于替换匹配内容的新文本"
-        }
-      }
-    },
-    "default": [
-      { "pattern": "王洪文", "replacement": "小王" },
-      { "pattern": "张春桥", "replacement": "春桥" },
-      { "pattern": "江青", "replacement": "云鹤" },
-      { "pattern": "华国锋", "replacement": "🌸" },
-      { "pattern": "immutable", "replacement": "うむ" },
-      { "pattern": "哦？", "replacement": "ほう？" },
-      { "pattern": "毛泽东", "replacement": "🐱" },
-      { "pattern": "叶剑英", "replacement": "🥥" },
-      { "pattern": "邓小平", "replacement": "总设计师" },
-      { "pattern": "江泽民", "replacement": "🐸" },
-      { "pattern": "胡锦涛", "replacement": "胡桃" },
-      { "pattern": "习近平", "replacement": "🐻" },
-      { "pattern": "四人帮", "replacement": "f4" },
-      { "pattern": "文革", "replacement": "wegame" }
-    ]
+    "description": "替换规则 (正则模式: 替换文本)",
+    "type": "object",
+    "hint": "键为正则表达式，值为替换后的文本",
+    "default": {
+      "王洪文": "小王",
+      "张春桥": "春桥",
+      "江青": "云鹤",
+      "华国锋": "🌸",
+      "immutable": "うむ",
+      "哦？": "ほう？",
+      "毛泽东": "🐱",
+      "叶剑英": "🥥",
+      "邓小平": "总设计师",
+      "江泽民": "🐸",
+      "胡锦涛": "胡桃",
+      "习近平": "🐻",
+      "四人帮": "f4",
+      "文革": "wegame"
+    }
   },
   "delete_rules": {
-    "description": "删除规则列表",
+    "description": "删除规则列表 (正则模式)",
     "type": "list",
-    "item": {
-      "type": "dict",
-      "properties": {
-        "pattern": {
-          "type": "string",
-          "description": "要匹配并删除的正则表达式"
-        }
-      }
-    },
+    "hint": "匹配到的内容将被直接删除",
     "default": [
-      { "pattern": "呵，" }
+      "呵，"
     ]
   }
 }
