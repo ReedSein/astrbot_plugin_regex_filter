@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Dict, Any
 
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -19,7 +19,7 @@ class RegexRule:
     action: str                   # 动作类型: 'replace' 或 'delete'
     description: str              # 规则描述
 
-@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.3.0", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
+@register("regex_filter", "LKarxa", "一个使用正则表达式处理LLM消息的插件", "1.4.0", "https://github.com/LKarxa/astrbot_plugin_regex_filter")
 class RegexFilterPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         """
@@ -30,33 +30,53 @@ class RegexFilterPlugin(Star):
         self.enabled = self.config.get("enabled", True)
         self.listen_all_responses = self.config.get("listen_all_responses", False)
         
-        # 使用强类型的列表存储规则，而非原来的 list of list
+        # 内存中的规则列表
         self.rules: List[RegexRule] = []
         
         # 加载规则
         self._load_rules_from_config()
 
     def _load_rules_from_config(self):
-        """从配置中加载并编译规则"""
+        """
+        从配置中加载并编译规则
+        (已重构：适配 Dict[str, str] 和 List[str] 格式)
+        """
         self.rules.clear()
         
-        # 加载替换规则
-        replace_rules = self.config.get("replace_rules", [])
-        for rule in replace_rules:
-            self._compile_and_add_memory(
-                pattern=rule.get("pattern", ""),
-                replacement=rule.get("replacement", ""),
-                action="replace"
-            )
-            
-        # 加载删除规则
-        delete_rules = self.config.get("delete_rules", [])
-        for rule in delete_rules:
-            self._compile_and_add_memory(
-                pattern=rule.get("pattern", ""),
-                replacement="",
-                action="delete"
-            )
+        # 1. 加载替换规则 (现在的格式是 Dict[str, str])
+        replace_map = self.config.get("replace_rules", {})
+        if isinstance(replace_map, dict):
+            for pattern, replacement in replace_map.items():
+                self._compile_and_add_memory(
+                    pattern=pattern,
+                    replacement=replacement,
+                    action="replace"
+                )
+        else:
+            # 兼容旧配置或错误类型的回退处理
+            logger.warning("配置警告: replace_rules 应为字典(对象)格式，尝试作为列表加载以兼容旧版...")
+            if isinstance(replace_map, list):
+                for item in replace_map:
+                    if isinstance(item, dict):
+                        self._compile_and_add_memory(item.get("pattern", ""), item.get("replacement", ""), "replace")
+
+        # 2. 加载删除规则 (现在的格式是 List[str])
+        delete_list = self.config.get("delete_rules", [])
+        if isinstance(delete_list, list):
+            for pattern in delete_list:
+                # 兼容性处理：如果用户还是用的旧格式 [{'pattern': 'xxx'}]
+                real_pattern = pattern
+                if isinstance(pattern, dict): 
+                    real_pattern = pattern.get("pattern", "")
+                
+                if isinstance(real_pattern, str):
+                    self._compile_and_add_memory(
+                        pattern=real_pattern,
+                        replacement="",
+                        action="delete"
+                    )
+        else:
+            logger.error("配置格式错误: delete_rules 应为列表格式")
             
         logger.info(f"RegexFilter插件已加载，当前生效规则数: {len(self.rules)}")
 
@@ -90,27 +110,27 @@ class RegexFilterPlugin(Star):
     def _sync_rules_to_config(self):
         """
         将内存中的规则全量同步保存到配置文件。
-        Single Source of Truth: 内存是主态，配置是持久化层。
+        (已重构：保存为扁平化的 Dict 和 List 结构)
         """
-        replace_list = []
+        replace_map = {}
         delete_list = []
         
         for rule in self.rules:
-            item = {"pattern": rule.raw_pattern}
             if rule.action == "replace":
-                item["replacement"] = rule.replacement
-                replace_list.append(item)
+                # 构建字典: { "pattern": "replacement" }
+                # 注意：如果存在重复的 pattern，后定义的会覆盖先定义的
+                replace_map[rule.raw_pattern] = rule.replacement
             else:
-                # delete
-                delete_list.append(item)
+                # 构建列表: [ "pattern1", "pattern2" ]
+                delete_list.append(rule.raw_pattern)
                 
         # 更新 config 对象
-        self.config["replace_rules"] = replace_list
+        self.config["replace_rules"] = replace_map
         self.config["delete_rules"] = delete_list
         
         # 持久化保存
         self.config.save_config()
-        logger.info("规则已同步保存到配置文件")
+        logger.info("规则已同步保存到配置文件 (简化格式)")
 
     def _apply_rules_to_text(self, text: str) -> Tuple[str, List[int]]:
         """
@@ -201,7 +221,7 @@ class RegexFilterPlugin(Star):
         success = self._compile_and_add_memory(pattern, replacement, action)
         
         if success:
-            # 2. 同步到配置
+            # 2. 同步到配置 (此处会自动以新格式保存)
             self._sync_rules_to_config()
             
             action_desc = '替换' if action == 'replace' else '删除'
