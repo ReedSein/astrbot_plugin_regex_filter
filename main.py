@@ -152,6 +152,30 @@ class RegexFilterPlugin(Star):
                 logger.warning(f"规则 {i+1} 执行异常: {e}")
                 
         return modified_text, applied_rules_indices
+    
+    def _get_command_args(self, event: AstrMessageEvent, command_name: str) -> str:
+        """
+        从消息中提取指令参数（保留空格）
+        """
+        message_str = re.sub(r"\s+", " ", event.get_message_str().strip())
+        if message_str == command_name:
+            return ""
+        if message_str.startswith(f"{command_name} "):
+            return message_str[len(command_name):].strip()
+        return ""
+    
+    def _parse_rule_args(self, raw_args: str) -> Tuple[str, str]:
+        """
+        解析正则规则参数，兼容旧的空格分隔与新的 '->' 格式
+        """
+        if "->" in raw_args:
+            parts = raw_args.split("->", 1)
+            return parts[0].strip(), parts[1].strip()
+        
+        parts = raw_args.split(" ", 1)
+        if len(parts) == 1:
+            return parts[0].strip(), ""
+        return parts[0].strip(), parts[1].strip()
 
     @filter.on_llm_response()
     async def on_llm_response(self, event: AstrMessageEvent, resp: LLMResponse):
@@ -185,10 +209,20 @@ class RegexFilterPlugin(Star):
             logger.info(f"[所有回复] 正则处理：消息链中的文本已修改")
 
     @filter.command("regex_add")
-    async def add_regex_rule(self, event: AstrMessageEvent, pattern: str, replacement: str = ""):
+    async def add_regex_rule(self, event: AstrMessageEvent):
         """添加正则规则"""
+        raw_args = self._get_command_args(event, "regex_add")
+        if not raw_args:
+            yield event.plain_result(
+                "参数不足。请使用格式：\n- 删除: /regex_add <模式>\n"
+                "- 替换: /regex_add <模式> <替换文本>\n"
+                "- 含空格替换: /regex_add <模式> -> <替换文本>"
+            )
+            return
+        
+        pattern, replacement = self._parse_rule_args(raw_args)
         if not pattern:
-            yield event.plain_result("参数不足。请使用格式：\n- 删除: /regex_add <模式>\n- 替换: /regex_add <模式> <替换文本>")
+            yield event.plain_result("参数不足。请检查正则模式是否为空。")
             return
         
         try:
@@ -246,8 +280,12 @@ class RegexFilterPlugin(Star):
         yield event.plain_result(f"🗑️ 规则 {index} 已删除。\n详情: {removed_rule.description}")
     
     @filter.command("regex_test")
-    async def test_regex(self, event: AstrMessageEvent, text: str):
+    async def test_regex(self, event: AstrMessageEvent):
         """测试当前规则对文本的处理效果"""
+        text = self._get_command_args(event, "regex_test")
+        if not text:
+            yield event.plain_result("参数不足。请使用格式：/regex_test <文本>")
+            return
         if not self.enabled:
             yield event.plain_result("⚠️ 插件当前已禁用，测试结果可能不反映实际运行状态。")
 
